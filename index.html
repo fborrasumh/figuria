@@ -1,0 +1,785 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>FigurIA · Figuras matplotlib listas para publicar</title>
+<meta name="description" content="Pipeline multiagente (Retriever, Planner, Stylist, Visualizer, Critic) que escribe, ejecuta y critica scripts de matplotlib para figuras científicas. Inspirado en PaperBanana.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans+Condensed:wght@400;500;600;700&family=IBM+Plex+Serif:ital,wght@0,400;0,600;1,400&display=swap" rel="stylesheet">
+<style>
+:root{
+  --paper:#EEF1F3;
+  --plate:#FFFFFF;
+  --ink:#0F1E2E;
+  --graphite:#5A6B7A;
+  --line:#D3DBE1;
+  --plot:#2E6E8E;
+  --banana:#F2C14E;
+  --alert:#B4442E;
+  --ok:#2F7A5B;
+  --r:3px;
+  --display:"IBM Plex Sans Condensed",system-ui,sans-serif;
+  --body:"IBM Plex Serif",Georgia,serif;
+  --mono:"IBM Plex Mono",ui-monospace,monospace;
+}
+*{box-sizing:border-box}
+html,body{margin:0;padding:0}
+body{
+  background-color:var(--paper);
+  color:var(--ink);
+  font-family:var(--body);
+  font-size:15px;
+  line-height:1.5;
+}
+.wrap{max-width:1280px;margin:0 auto;padding:22px 18px 60px}
+a{color:var(--plot)}
+
+/* ---------- cabecera ---------- */
+header.top{display:flex;flex-wrap:wrap;align-items:flex-end;gap:18px;border-bottom:2px solid var(--ink);padding-bottom:12px}
+.mark{font-family:var(--display);font-weight:700;font-size:40px;letter-spacing:-.02em;line-height:.95}
+.mark span{color:var(--plot)}
+.tagline{font-family:var(--display);font-weight:400;color:var(--graphite);font-size:14px;max-width:44ch;margin-bottom:4px}
+.top .spacer{flex:1}
+.stamp{font-family:var(--mono);font-size:11px;color:var(--graphite);text-transform:uppercase;letter-spacing:.08em;margin-bottom:4px}
+
+/* ---------- controles ---------- */
+.panel{background:var(--plate);border:1px solid var(--line);border-radius:var(--r)}
+.panel h2{font-family:var(--display);font-size:13px;font-weight:600;text-transform:uppercase;letter-spacing:.11em;margin:0;padding:11px 14px;border-bottom:1px solid var(--line);color:var(--graphite)}
+.panel .body{padding:14px}
+label{display:block;font-family:var(--display);font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:.07em;color:var(--graphite);margin:0 0 5px}
+input[type=text],input[type=password],textarea,select{
+  width:100%;font-family:var(--mono);font-size:13px;color:var(--ink);
+  background:#FBFCFD;border:1px solid var(--line);border-radius:var(--r);padding:8px 9px;
+}
+textarea{resize:vertical;line-height:1.45}
+input:focus,textarea:focus,select:focus{outline:2px solid var(--plot);outline-offset:1px;border-color:var(--plot)}
+.field{margin-bottom:13px}
+.field:last-child{margin-bottom:0}
+.hint{font-family:var(--display);font-size:12px;color:var(--graphite);margin-top:5px}
+.row{display:flex;gap:10px}
+.row>*{flex:1;min-width:0}
+
+button{
+  font-family:var(--display);font-weight:600;font-size:13px;letter-spacing:.04em;
+  border:1px solid var(--ink);background:var(--ink);color:#fff;border-radius:var(--r);
+  padding:9px 14px;cursor:pointer;transition:transform .08s ease,background .15s ease;
+}
+button:hover{background:#1d3550}
+button:active{transform:translateY(1px)}
+button.ghost{background:transparent;color:var(--ink);border-color:var(--line)}
+button.ghost:hover{background:#F3F6F8;border-color:var(--graphite)}
+button.mini{padding:5px 9px;font-size:11px;letter-spacing:.06em;text-transform:uppercase}
+button:disabled{opacity:.45;cursor:not-allowed;transform:none}
+.run{width:100%;padding:13px;font-size:15px;background:var(--plot);border-color:var(--plot)}
+.run:hover{background:#255a75}
+
+/* ---------- layout ---------- */
+main{display:grid;grid-template-columns:minmax(0,380px) minmax(0,1fr);gap:18px;margin-top:20px;align-items:start}
+@media(max-width:940px){main{grid-template-columns:1fr}}
+
+/* ---------- track de agentes ---------- */
+.track{display:grid;grid-template-columns:repeat(5,1fr);gap:1px;background:var(--line);border:1px solid var(--line);border-radius:var(--r);overflow:hidden;margin-bottom:16px}
+.station{background:var(--plate);padding:9px 10px 10px}
+.station .n{font-family:var(--mono);font-size:10px;color:var(--graphite)}
+.station .nm{font-family:var(--display);font-weight:600;font-size:13px;letter-spacing:.01em;margin-top:1px}
+.station .bar{height:3px;background:var(--line);margin-top:7px;position:relative;overflow:hidden}
+.station .bar i{position:absolute;inset:0;width:0;background:var(--plot);transition:width .4s ease}
+.station.active .bar i{width:100%;animation:pulse 1.1s ease-in-out infinite}
+.station.done .bar i{width:100%;background:var(--ok)}
+.station.fail .bar i{width:100%;background:var(--alert)}
+.station.active .nm{color:var(--plot)}
+@keyframes pulse{0%,100%{opacity:.45}50%{opacity:1}}
+@media(prefers-reduced-motion:reduce){.station.active .bar i{animation:none}*{transition:none!important}}
+
+/* ---------- pestañas ---------- */
+.tabs{display:flex;flex-wrap:wrap;gap:0;border-bottom:1px solid var(--line);margin-bottom:0}
+.tab{font-family:var(--display);font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:.08em;color:var(--graphite);
+  background:transparent;border:none;border-bottom:2px solid transparent;padding:9px 12px;border-radius:0}
+.tab:hover{background:transparent;color:var(--ink)}
+.tab[aria-selected=true]{color:var(--ink);border-bottom-color:var(--banana)}
+.view{display:none;padding:16px 0 0}
+.view.on{display:block}
+
+/* ---------- lámina de figura ---------- */
+.plate{background:var(--plate);border:1px solid var(--line);border-radius:var(--r);padding:26px 26px 20px;position:relative}
+.plate img{display:block;max-width:100%;margin:0 auto;background:#fff}
+.plate .empty{font-family:var(--display);color:var(--graphite);text-align:center;padding:70px 10px;font-size:14px}
+.plate .empty b{display:block;font-size:16px;color:var(--ink);margin-bottom:6px}
+figcaption{font-family:var(--body);font-size:13.5px;line-height:1.45;color:var(--ink);margin-top:20px;padding-top:12px;border-top:1px solid var(--line)}
+figcaption .fignum{font-family:var(--display);font-weight:700;text-transform:uppercase;letter-spacing:.09em;font-size:11px;margin-right:7px}
+.score-stamp{position:absolute;top:14px;right:14px;font-family:var(--mono);font-size:11px;color:var(--graphite);text-align:right;line-height:1.5}
+.score-stamp b{font-size:22px;color:var(--ink);display:block;font-weight:600}
+
+pre.code{font-family:var(--mono);font-size:12.5px;line-height:1.55;background:#0F1E2E;color:#E8EEF3;padding:16px;border-radius:var(--r);overflow:auto;max-height:62vh;margin:0}
+pre.code .cm{color:#8FA6B8}
+.md{font-family:var(--body);font-size:14px}
+.md h4{font-family:var(--display);font-size:12px;text-transform:uppercase;letter-spacing:.09em;color:var(--graphite);margin:16px 0 6px}
+.md ul{margin:6px 0;padding-left:20px}
+.kv{display:grid;grid-template-columns:auto 1fr;gap:4px 14px;font-family:var(--mono);font-size:12.5px;margin:0}
+.kv dt{color:var(--graphite)}
+.kv dd{margin:0}
+.meter{display:grid;grid-template-columns:130px 1fr 34px;gap:10px;align-items:center;margin:7px 0;font-family:var(--display);font-size:12.5px}
+.meter .m{height:8px;background:var(--line);border-radius:2px;overflow:hidden}
+.meter .m i{display:block;height:100%;background:var(--plot)}
+.meter b{font-family:var(--mono);font-size:12px;text-align:right;font-weight:500}
+
+.console{font-family:var(--mono);font-size:12px;line-height:1.7;background:var(--plate);border:1px solid var(--line);border-radius:var(--r);padding:12px 14px;max-height:60vh;overflow:auto}
+.console div{display:grid;grid-template-columns:62px 1fr;gap:10px}
+.console .t{color:var(--graphite)}
+.console .e{color:var(--alert)}
+.console .g{color:var(--ok)}
+
+.notice{font-family:var(--display);font-size:12.5px;color:var(--graphite);border-left:3px solid var(--banana);padding:2px 0 2px 11px;margin:14px 0}
+footer{margin-top:34px;padding-top:14px;border-top:1px solid var(--line);font-family:var(--display);font-size:12px;color:var(--graphite);display:flex;flex-wrap:wrap;gap:14px}
+.chips{display:flex;flex-wrap:wrap;gap:7px;margin-top:9px}
+.chip{font-family:var(--mono);font-size:11px;border:1px solid var(--line);border-radius:99px;padding:3px 9px;color:var(--graphite);background:#FBFCFD;cursor:pointer}
+.chip:hover{border-color:var(--plot);color:var(--plot)}
+.dl{display:flex;flex-wrap:wrap;gap:8px;margin-top:14px}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header class="top">
+  <div>
+    <div class="mark">Figur<span>IA</span></div>
+    <div class="tagline">Cinco agentes planifican, dibujan y critican tu figura hasta que el script de matplotlib está listo para enviar a revista.</div>
+  </div>
+  <div class="spacer"></div>
+  <div class="stamp">Réplica en navegador del pipeline PaperBanana · rama de gráficos estadísticos</div>
+</header>
+
+<main>
+  <!-- ================= COLUMNA IZQUIERDA ================= -->
+  <div>
+    <section class="panel" style="margin-bottom:16px">
+      <h2>Acceso</h2>
+      <div class="body">
+        <div class="field">
+          <label for="key">Clave de OpenAI</label>
+          <input id="key" type="password" placeholder="sk-..." autocomplete="off">
+          <div class="hint">Se guarda solo en este navegador (localStorage). Las llamadas van directas a api.openai.com.</div>
+        </div>
+        <div class="row">
+          <div class="field">
+            <label for="model">Modelo de trabajo</label>
+            <select id="model">
+              <option value="gpt-4o-mini">gpt-4o-mini</option>
+              <option value="gpt-4.1-mini">gpt-4.1-mini</option>
+              <option value="gpt-4o">gpt-4o</option>
+              <option value="gpt-4.1">gpt-4.1</option>
+            </select>
+          </div>
+          <div class="field">
+            <label for="cmodel">Modelo del crítico</label>
+            <select id="cmodel">
+              <option value="gpt-4o-mini">gpt-4o-mini</option>
+              <option value="gpt-4o">gpt-4o</option>
+              <option value="gpt-4.1">gpt-4.1</option>
+            </select>
+          </div>
+        </div>
+        <div class="hint">El crítico mira la imagen renderizada, así que necesita visión. Los cuatro modelos la tienen.</div>
+      </div>
+    </section>
+
+    <section class="panel">
+      <h2>Encargo</h2>
+      <div class="body">
+        <div class="field">
+          <label for="data">Datos en bruto</label>
+          <textarea id="data" rows="9" placeholder="Pega aquí una tabla CSV/TSV, una lista de valores o los resultados de tu experimento."></textarea>
+          <div class="chips">
+            <span class="chip" data-demo="bench">Demo · benchmark de métodos</span>
+            <span class="chip" data-demo="curva">Demo · curvas de entrenamiento</span>
+            <span class="chip" data-demo="clinico">Demo · ensayo clínico</span>
+          </div>
+        </div>
+        <div class="field">
+          <label for="caption">Pie de figura previsto</label>
+          <textarea id="caption" rows="3" placeholder="Figura 3. Comparación de los cuatro métodos en las dimensiones evaluadas."></textarea>
+        </div>
+        <div class="field">
+          <label for="ctx">Contexto del trabajo</label>
+          <textarea id="ctx" rows="3" placeholder="Qué se compara, qué mensaje debe quedar claro, qué es cada variable, unidades."></textarea>
+        </div>
+        <div class="row">
+          <div class="field">
+            <label for="venue">Estilo de destino</label>
+            <select id="venue">
+              <option value="neurips">NeurIPS / ICML</option>
+              <option value="nature">Nature / Science</option>
+              <option value="ieee">IEEE (doble columna)</option>
+              <option value="biomed">Revista biomédica</option>
+              <option value="slide">Diapositiva de charla</option>
+            </select>
+          </div>
+          <div class="field">
+            <label for="width">Ancho (pulgadas)</label>
+            <input id="width" type="text" value="6.5">
+          </div>
+        </div>
+        <div class="row">
+          <div class="field">
+            <label for="iters">Rondas de crítica</label>
+            <select id="iters">
+              <option value="1">1</option>
+              <option value="2" selected>2</option>
+              <option value="3">3</option>
+            </select>
+          </div>
+          <div class="field">
+            <label for="cvd">Paleta segura</label>
+            <select id="cvd">
+              <option value="si">Sí, apta para daltonismo</option>
+              <option value="no">Libre</option>
+            </select>
+          </div>
+        </div>
+        <button class="run" id="go">Generar la figura</button>
+        <div class="hint" id="status" style="text-align:center;margin-top:9px">Listo cuando lo estés.</div>
+      </div>
+    </section>
+
+    <div class="notice">Los números no se inventan: el visualizador incrusta tus datos literalmente en el script y el crítico comprueba uno a uno que lo dibujado coincide con lo que pegaste.</div>
+  </div>
+
+  <!-- ================= COLUMNA DERECHA ================= -->
+  <div>
+    <div class="track" id="track"></div>
+
+    <div class="tabs" role="tablist">
+      <button class="tab" role="tab" aria-selected="true" data-view="fig">Figura</button>
+      <button class="tab" role="tab" aria-selected="false" data-view="code">Script</button>
+      <button class="tab" role="tab" aria-selected="false" data-view="plan">Plan</button>
+      <button class="tab" role="tab" aria-selected="false" data-view="style">Estilo</button>
+      <button class="tab" role="tab" aria-selected="false" data-view="crit">Crítica</button>
+      <button class="tab" role="tab" aria-selected="false" data-view="log">Registro</button>
+    </div>
+
+    <div class="view on" id="v-fig">
+      <figure class="plate" id="plate" style="margin:0">
+        <div class="empty" id="plateEmpty"><b>Aún no hay lámina</b>Pega tus datos, describe la figura y lanza el pipeline. El resultado se renderiza aquí con matplotlib real, dentro del navegador.</div>
+        <img id="figimg" alt="Figura generada" style="display:none">
+        <div class="score-stamp" id="stamp" style="display:none"></div>
+        <figcaption id="cap" style="display:none"></figcaption>
+      </figure>
+      <div class="dl" id="dl" style="display:none">
+        <button class="ghost mini" id="dlpng">Descargar PNG</button>
+        <button class="ghost mini" id="dlpy">Descargar script .py</button>
+        <button class="ghost mini" id="dljson">Descargar traza JSON</button>
+        <button class="ghost mini" id="cpcode">Copiar código</button>
+      </div>
+    </div>
+
+    <div class="view" id="v-code"><pre class="code" id="code">El script aparecerá aquí. Es autónomo: incluye tus datos, no lee ficheros externos y guarda figure.png a 300 ppp.</pre></div>
+    <div class="view" id="v-plan"><div class="panel"><div class="body md" id="plan">Sin plan todavía.</div></div></div>
+    <div class="view" id="v-style"><div class="panel"><div class="body md" id="style">Sin guía de estilo todavía.</div></div></div>
+    <div class="view" id="v-crit"><div class="panel"><div class="body md" id="crit">Sin crítica todavía.</div></div></div>
+    <div class="view" id="v-log"><div class="console" id="log"></div></div>
+  </div>
+</main>
+
+<footer>
+  <span>FigurIA · herramienta abierta de una sola página</span>
+  <span>Método inspirado en <a href="https://dwzhu-pku.github.io/PaperBanana/" target="_blank" rel="noopener">PaperBanana</a> (Zhu et al., arXiv:2601.23265)</span>
+  <span>matplotlib se ejecuta en local vía Pyodide</span>
+</footer>
+</div>
+
+<script src="https://cdn.jsdelivr.net/pyodide/v0.26.4/full/pyodide.js"></script>
+<script>
+/* ============================================================
+   FigurIA — pipeline multiagente para figuras matplotlib
+   Retriever → Planner → Stylist → Visualizer → Critic
+   ============================================================ */
+
+const $ = id => document.getElementById(id);
+const KEY_STORE = 'ia_openai_key';
+
+const STATIONS = [
+  ['01','Retriever'],['02','Planner'],['03','Stylist'],['04','Visualizer'],['05','Critic']
+];
+
+const RUN = {
+  code:'', png:'', plan:null, style:null, critique:null, retrieval:null,
+  history:[], best:{score:-1, code:'', png:'', critique:null}, t0:0
+};
+
+/* ---------- referencias de estilo (biblioteca local del Retriever) ---------- */
+const REFERENCES = {
+  neurips:{
+    nombre:'NeurIPS / ICML',
+    reglas:['Fondo blanco, sin marco superior ni derecho.','Rejilla horizontal tenue, gris claro, detrás de los datos.','Paleta sobria de 3–5 tonos desaturados; nada de arcoíris por defecto.','Leyenda dentro de los ejes si cabe, sin recuadro con sombra.','Tipografía sans de 8–10 pt; el pie de figura no se repite como título.','Anchura típica 3.3 in (una columna) o 6.75 in (dos columnas).'],
+  },
+  nature:{
+    nombre:'Nature / Science',
+    reglas:['Ejes finos (0.6–0.8 pt) y marcas hacia fuera, cortas.','Sin título dentro de la figura: todo va al pie.','Paneles etiquetados a, b, c en negrita, alineados arriba a la izquierda.','Máximo 4 colores; se prefiere codificar también por forma o trama.','Unidades siempre entre paréntesis en la etiqueta del eje.','Anchura 89 mm (3.5 in) o 183 mm (7.2 in).'],
+  },
+  ieee:{
+    nombre:'IEEE doble columna',
+    reglas:['Anchura 3.5 in y tipografía de 8 pt para que aguante la reducción.','Marcadores distinguibles en blanco y negro (o, s, ^, d).','Rejilla completa muy tenue admitida en gráficos de líneas.','Leyenda con recuadro fino, esquina de menor densidad de datos.','Nada de degradados ni sombras.'],
+  },
+  biomed:{
+    nombre:'Revista biomédica',
+    reglas:['Mostrar dispersión: barras de error, IC 95 % o puntos individuales.','Nunca barras de media sin medida de variabilidad.','Indicar n en el eje o en la leyenda.','Anotar significación con corchetes y valor p exacto, no asteriscos sueltos.','Escala del eje y desde 0 si son proporciones o recuentos.'],
+  },
+  slide:{
+    nombre:'Diapositiva',
+    reglas:['Tipografía grande (14–18 pt) y menos elementos.','Un solo mensaje: destacar la serie clave y atenuar el resto.','Etiquetas directas sobre las series en lugar de leyenda.','Contraste alto; margen generoso.'],
+  }
+};
+
+const DEMOS = {
+  bench:{
+    data:`metodo,fidelidad,concision,legibilidad,estetica
+Vanilla VLM,3.41,3.02,3.55,3.18
++ referencias,3.88,3.47,3.91,3.62
++ estilista,4.02,3.71,4.15,4.11
+Pipeline completo,4.36,4.12,4.38,4.44`,
+    caption:'Figura 2. Puntuación media (escala 1–5) de cada configuración del sistema en las cuatro dimensiones de evaluación sobre 292 casos de prueba.',
+    ctx:'Estudio de ablación de un sistema multiagente de generación de figuras. Cada fila añade un componente al anterior. El mensaje es que cada componente aporta mejora y que el pipeline completo gana en las cuatro dimensiones, con la mayor ganancia en concisión.'
+  },
+  curva:{
+    data:`epoch,train_loss,val_loss
+1,2.41,2.38
+2,1.87,1.92
+3,1.52,1.66
+4,1.28,1.51
+5,1.09,1.43
+6,0.94,1.39
+7,0.81,1.38
+8,0.70,1.41
+9,0.61,1.47
+10,0.54,1.55`,
+    caption:'Figura 1. Evolución de la pérdida en entrenamiento y validación durante 10 épocas.',
+    ctx:'El punto clave es el sobreajuste: la pérdida de validación toca mínimo en la época 7 (1.38) y sube después, mientras la de entrenamiento sigue bajando. Hay que señalar ese mínimo en la figura.'
+  },
+  clinico:{
+    data:`grupo,n,media_reduccion_mmHg,ic95_inf,ic95_sup
+Placebo,84,2.1,0.4,3.8
+Dosis baja,81,7.6,5.9,9.3
+Dosis alta,79,11.2,9.1,13.3`,
+    caption:'Figura 4. Reducción media de la presión arterial sistólica a las 12 semanas por grupo de tratamiento, con intervalos de confianza del 95 %.',
+    ctx:'Ensayo aleatorizado de tres brazos. Interesa que se vea la relación dosis-respuesta y que los intervalos de los grupos activos no solapan con el del placebo. Unidades: mmHg.'
+  }
+};
+
+/* ---------- utilidades de interfaz ---------- */
+function buildTrack(){
+  $('track').innerHTML = STATIONS.map((s,i)=>
+    `<div class="station" id="st${i}"><div class="n">${s[0]}</div><div class="nm">${s[1]}</div><div class="bar"><i></i></div></div>`
+  ).join('');
+}
+function setStation(i,state){
+  const el=$('st'+i); if(!el) return;
+  el.className='station'+(state?' '+state:'');
+}
+function resetStations(){ STATIONS.forEach((s,i)=>setStation(i,'')); }
+
+function log(msg,cls){
+  const t=((Date.now()-RUN.t0)/1000).toFixed(1)+'s';
+  const d=document.createElement('div');
+  d.innerHTML=`<span class="t">${t}</span><span class="${cls||''}"></span>`;
+  d.lastChild.textContent=msg;
+  $('log').appendChild(d);
+  $('log').scrollTop=$('log').scrollHeight;
+}
+function status(t){ $('status').textContent=t; }
+function esc(s){ return String(s==null?'':s).replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c])); }
+
+document.querySelectorAll('.tab').forEach(b=>{
+  b.addEventListener('click',()=>{
+    document.querySelectorAll('.tab').forEach(x=>x.setAttribute('aria-selected','false'));
+    b.setAttribute('aria-selected','true');
+    document.querySelectorAll('.view').forEach(v=>v.classList.remove('on'));
+    $('v-'+b.dataset.view).classList.add('on');
+  });
+});
+document.querySelectorAll('.chip').forEach(c=>{
+  c.addEventListener('click',()=>{
+    const d=DEMOS[c.dataset.demo];
+    $('data').value=d.data; $('caption').value=d.caption; $('ctx').value=d.ctx;
+    status('Datos de ejemplo cargados.');
+  });
+});
+
+$('key').value = localStorage.getItem(KEY_STORE) || '';
+$('key').addEventListener('change',()=>localStorage.setItem(KEY_STORE,$('key').value.trim()));
+
+/* ---------- llamada a OpenAI ---------- */
+async function ask(messages,{model,json=true,temperature=0.3,maxTokens=3000}={}){
+  const body={model,messages,max_tokens:maxTokens,temperature};
+  if(json) body.response_format={type:'json_object'};
+  const r=await fetch('https://api.openai.com/v1/chat/completions',{
+    method:'POST',
+    headers:{'Content-Type':'application/json','Authorization':'Bearer '+$('key').value.trim()},
+    body:JSON.stringify(body)
+  });
+  if(!r.ok){
+    let detail='';
+    try{ detail=(await r.json()).error?.message||''; }catch(e){}
+    throw new Error('OpenAI '+r.status+(detail?': '+detail:''));
+  }
+  const d=await r.json();
+  return d.choices[0].message.content||'';
+}
+function parseJSON(txt){
+  let t=String(txt).trim().replace(/^```(?:json)?/i,'').replace(/```$/,'').trim();
+  try{ return JSON.parse(t); }
+  catch(e){
+    const a=t.indexOf('{'), b=t.lastIndexOf('}');
+    if(a>=0&&b>a) return JSON.parse(t.slice(a,b+1));
+    throw new Error('El modelo no devolvió JSON válido.');
+  }
+}
+function stripFences(txt){
+  const m=String(txt).match(/```(?:python|py)?\s*([\s\S]*?)```/i);
+  return (m?m[1]:String(txt)).trim();
+}
+
+/* ---------- Pyodide ---------- */
+let pyodide=null, pyOut=[];
+async function bootPython(){
+  if(pyodide) return pyodide;
+  status('Cargando Python en el navegador…');
+  log('Arrancando Pyodide (primera vez: ~15 s).');
+  pyodide=await loadPyodide({indexURL:'https://cdn.jsdelivr.net/pyodide/v0.26.4/full/'});
+  await pyodide.loadPackage(['numpy','matplotlib','pandas']);
+  pyodide.setStdout({batched:s=>pyOut.push(s)});
+  pyodide.setStderr({batched:s=>pyOut.push(s)});
+  log('Python listo con numpy, matplotlib y pandas.','g');
+  return pyodide;
+}
+function ensureSave(code){
+  if(!/figure\.png/.test(code)) code+='\n\nplt.savefig("figure.png", dpi=300, bbox_inches="tight")\n';
+  return code;
+}
+function toBase64(bytes){
+  let s='';
+  const chunk=0x8000;
+  for(let i=0;i<bytes.length;i+=chunk) s+=String.fromCharCode.apply(null,bytes.subarray(i,i+chunk));
+  return btoa(s);
+}
+async function runPython(code){
+  await bootPython();
+  pyOut=[];
+  try{ pyodide.FS.unlink('figure.png'); }catch(e){}
+  const header='import matplotlib\nmatplotlib.use("Agg")\nimport warnings\nwarnings.filterwarnings("ignore")\n';
+  try{
+    await pyodide.runPythonAsync(header+code);
+  }catch(err){
+    return {ok:false, error:String(err.message||err).split('\n').slice(-25).join('\n'), out:pyOut.join('\n')};
+  }
+  let bytes=null;
+  try{ bytes=pyodide.FS.readFile('figure.png'); }catch(e){}
+  if(!bytes) return {ok:false, error:'El script terminó sin escribir figure.png.', out:pyOut.join('\n')};
+  return {ok:true, png:toBase64(bytes), out:pyOut.join('\n')};
+}
+
+/* ---------- prompts de los agentes ---------- */
+function brief(){
+  const v=REFERENCES[$('venue').value];
+  return {
+    data:$('data').value.trim(),
+    caption:$('caption').value.trim(),
+    ctx:$('ctx').value.trim(),
+    venue:v,
+    width:parseFloat($('width').value)||6.5,
+    cvd:$('cvd').value==='si'
+  };
+}
+
+const RULES_CODE = `Reglas obligatorias del script:
+- Python 3 con matplotlib (y numpy si hace falta). Nada de seaborn, plotly ni descargas.
+- Los datos van escritos literalmente dentro del script como listas o diccionarios. Nunca leas ficheros ni inventes valores.
+- No uses plt.style.use de estilos externos ni usetex=True. Fuentes: family "sans-serif" con lista ["Helvetica","Arial","DejaVu Sans"].
+- No llames a plt.show(). Termina siempre con plt.savefig("figure.png", dpi=300, bbox_inches="tight").
+- Un solo bloque de código completo y ejecutable, sin explicaciones fuera del código.`;
+
+async function agentRetriever(b,model){
+  const sys='Eres el agente Retriever de un sistema de ilustración académica. Analizas datos en bruto y decides qué familia de gráfico y qué referencias de estilo aplican. Respondes solo en JSON.';
+  const usr=`Datos en bruto:\n"""${b.data}"""\n\nPie previsto: ${b.caption}\nContexto: ${b.ctx}\nDestino editorial: ${b.venue.nombre}\nGuía disponible: ${b.venue.reglas.join(' | ')}\n\nDevuelve JSON con las claves:
+{"familia":"barras agrupadas|líneas|dispersión|caja|forest plot|barras con error|área|heatmap|...",
+ "estructura_datos":"descripción breve de filas, columnas y tipos, en español",
+ "variables":[{"nombre":"","papel":"eje x|eje y|serie|error|anotación","unidad":""}],
+ "riesgos":["problemas de fidelidad o legibilidad que hay que vigilar, en español"],
+ "referencias_aplicables":["las 3 o 4 reglas de la guía que más pesan en este caso"]}`;
+  return parseJSON(await ask([{role:'system',content:sys},{role:'user',content:usr}],{model}));
+}
+
+async function agentPlanner(b,ret,model){
+  const sys='Eres el agente Planner. Conviertes datos y contexto en una especificación visual precisa que otro agente convertirá en código. Piensas en el mensaje antes que en el adorno. Respondes solo en JSON, con los textos en español.';
+  const usr=`Datos:\n"""${b.data}"""\nPie: ${b.caption}\nContexto: ${b.ctx}\nAnálisis del Retriever: ${JSON.stringify(ret)}\n\nDevuelve JSON:
+{"mensaje":"la única idea que el lector debe llevarse",
+ "tipo_grafico":"",
+ "paneles":"uno solo|rejilla 1x2|...",
+ "eje_x":{"variable":"","etiqueta":"","escala":"lineal|log","orden":""},
+ "eje_y":{"variable":"","etiqueta":"","escala":"lineal|log","rango_sugerido":"auto o [min,max] con justificación"},
+ "series":[{"nombre":"","valores":"referencia a los datos","enfasis":true}],
+ "incertidumbre":"cómo se representa la variabilidad, o 'no aplica'",
+ "anotaciones":["texto exacto y a qué dato se ancla"],
+ "leyenda":"posición y forma, o 'etiquetas directas'",
+ "elementos_a_omitir":["lo que se quita para no recargar"]}`;
+  return parseJSON(await ask([{role:'system',content:sys},{role:'user',content:usr}],{model}));
+}
+
+async function agentStylist(b,plan,model){
+  const sys='Eres el agente Stylist. Traduces normas editoriales en parámetros concretos de matplotlib. Respondes solo en JSON.';
+  const usr=`Destino: ${b.venue.nombre}\nNormas: ${b.venue.reglas.join(' | ')}\nAncho de figura: ${b.width} pulgadas\nPaleta segura para daltonismo: ${b.cvd?'obligatoria':'opcional'}\nPlan: ${JSON.stringify(plan)}\n\nDevuelve JSON:
+{"figsize":[ancho,alto],
+ "paleta":["#RRGGBB", "..."],
+ "color_enfasis":"#RRGGBB",
+ "rcparams":{"font.size":9,"axes.linewidth":0.8,"...":"pares clave-valor válidos de matplotlib"},
+ "ejes":"qué spines se ven, dirección y longitud de las marcas",
+ "rejilla":"eje, color, grosor, alfa o 'sin rejilla'",
+ "justificacion":"dos frases en español sobre por qué esta paleta y estas proporciones sirven a este destino"}`;
+  return parseJSON(await ask([{role:'system',content:sys},{role:'user',content:usr}],{model}));
+}
+
+async function agentVisualizer(b,plan,style,model){
+  const sys='Eres el agente Visualizer. Escribes código matplotlib limpio y ejecutable. Devuelves únicamente código Python, sin texto alrededor.';
+  const usr=`Datos en bruto (fuente de verdad, cópialos exactamente):\n"""${b.data}"""\n\nPlan: ${JSON.stringify(plan)}\n\nEstilo: ${JSON.stringify(style)}\n\nPie de figura: ${b.caption}\n\n${RULES_CODE}`;
+  return stripFences(await ask([{role:'system',content:sys},{role:'user',content:usr}],{model,json:false,temperature:0.2,maxTokens:3000}));
+}
+
+async function agentRepair(code,error,model){
+  const sys='Eres el agente Visualizer corrigiendo tu propio script. Devuelves únicamente el código Python completo y corregido.';
+  const usr=`Este script falló al ejecutarse:\n\n${code}\n\nError:\n${error}\n\nCorrígelo manteniendo la misma figura y los mismos datos. ${RULES_CODE}`;
+  return stripFences(await ask([{role:'system',content:sys},{role:'user',content:usr}],{model,json:false,temperature:0.1,maxTokens:3000}));
+}
+
+async function agentCritic(b,plan,png,model){
+  const sys='Eres el agente Critic. Inspeccionas una figura renderizada frente a los datos y al plan, y das una crítica exigente de revisor de revista. Respondes solo en JSON, en español.';
+  const txt=`Datos originales:\n"""${b.data}"""\n\nPlan acordado: ${JSON.stringify(plan)}\nPie: ${b.caption}\n\nComprueba en la imagen adjunta, uno a uno, que los valores dibujados coinciden con los datos originales y que no hay series, categorías ni etiquetas inventadas ni duplicadas.\n\nDevuelve JSON:
+{"puntuaciones":{"fidelidad":0,"concision":0,"legibilidad":0,"estetica":0},
+ "errores_de_fidelidad":["discrepancias concretas entre imagen y datos; lista vacía si no hay"],
+ "problemas":[{"gravedad":"alta|media|baja","descripcion":"","arreglo":"instrucción accionable para el código"}],
+ "aciertos":[""],
+ "veredicto":"aceptar|revisar",
+ "instrucciones_de_revision":"párrafo con los cambios exactos que debe aplicar el visualizador; cadena vacía si se acepta"}
+Las puntuaciones van de 1 a 5 con un decimal. Sé severo con fidelidad: cualquier número mal dibujado la deja por debajo de 3.`;
+  const out=await ask([
+    {role:'system',content:sys},
+    {role:'user',content:[{type:'text',text:txt},{type:'image_url',image_url:{url:'data:image/png;base64,'+png,detail:'high'}}]}
+  ],{model});
+  return parseJSON(out);
+}
+
+async function agentReviser(b,code,critique,model){
+  const sys='Eres el agente Visualizer aplicando la crítica recibida. Devuelves únicamente el código Python completo y revisado.';
+  const usr=`Script actual:\n\n${code}\n\nCrítica: ${JSON.stringify(critique)}\n\nDatos originales (no los cambies):\n"""${b.data}"""\n\nAplica todas las correcciones de gravedad alta y media. Conserva lo que la crítica señala como acierto. ${RULES_CODE}`;
+  return stripFences(await ask([{role:'system',content:sys},{role:'user',content:usr}],{model,json:false,temperature:0.2,maxTokens:3000}));
+}
+
+/* ---------- render de resultados ---------- */
+function showFigure(b,png,critique){
+  $('plateEmpty').style.display='none';
+  const img=$('figimg');
+  img.src='data:image/png;base64,'+png;
+  img.style.display='block';
+  $('cap').style.display='block';
+  $('cap').innerHTML='<span class="fignum">Figura</span>'+esc(b.caption||'Sin pie de figura.');
+  $('dl').style.display='flex';
+  if(critique){
+    const s=critique.puntuaciones||{};
+    const media=avg(s);
+    $('stamp').style.display='block';
+    $('stamp').innerHTML='<b>'+media.toFixed(2)+'</b>media de 4 criterios';
+  }
+}
+function avg(s){
+  const v=['fidelidad','concision','legibilidad','estetica'].map(k=>Number(s[k])||0);
+  return v.reduce((a,c)=>a+c,0)/4;
+}
+function renderPlan(p){
+  $('plan').innerHTML=
+    `<h4>Mensaje</h4><p>${esc(p.mensaje)}</p>`+
+    `<h4>Composición</h4><dl class="kv">`+
+      `<dt>tipo</dt><dd>${esc(p.tipo_grafico)}</dd>`+
+      `<dt>paneles</dt><dd>${esc(p.paneles)}</dd>`+
+      `<dt>eje x</dt><dd>${esc(p.eje_x&&p.eje_x.etiqueta)} (${esc(p.eje_x&&p.eje_x.escala)})</dd>`+
+      `<dt>eje y</dt><dd>${esc(p.eje_y&&p.eje_y.etiqueta)} (${esc(p.eje_y&&p.eje_y.escala)})</dd>`+
+      `<dt>leyenda</dt><dd>${esc(p.leyenda)}</dd>`+
+      `<dt>incertidumbre</dt><dd>${esc(p.incertidumbre)}</dd>`+
+    `</dl>`+
+    list('Anotaciones',p.anotaciones)+
+    list('Se omite a propósito',p.elementos_a_omitir);
+}
+function renderStyle(s){
+  $('style').innerHTML=
+    `<h4>Justificación</h4><p>${esc(s.justificacion)}</p>`+
+    `<h4>Paleta</h4><div style="display:flex;gap:6px;flex-wrap:wrap">`+
+      (s.paleta||[]).map(c=>`<span style="width:44px;height:26px;border:1px solid var(--line);background:${esc(c)}" title="${esc(c)}"></span>`).join('')+
+    `</div>`+
+    `<h4>Parámetros</h4><dl class="kv">`+
+      `<dt>figsize</dt><dd>${esc(JSON.stringify(s.figsize))}</dd>`+
+      `<dt>ejes</dt><dd>${esc(s.ejes)}</dd>`+
+      `<dt>rejilla</dt><dd>${esc(s.rejilla)}</dd>`+
+      Object.entries(s.rcparams||{}).map(([k,v])=>`<dt>${esc(k)}</dt><dd>${esc(JSON.stringify(v))}</dd>`).join('')+
+    `</dl>`;
+}
+function renderCritique(c){
+  const s=c.puntuaciones||{};
+  const meters=['fidelidad','concision','legibilidad','estetica'].map(k=>{
+    const v=Number(s[k])||0;
+    return `<div class="meter"><span>${k}</span><span class="m"><i style="width:${(v/5*100).toFixed(0)}%"></i></span><b>${v.toFixed(1)}</b></div>`;
+  }).join('');
+  const fid=(c.errores_de_fidelidad||[]);
+  $('crit').innerHTML=
+    meters+
+    `<h4>Veredicto</h4><p>${esc(c.veredicto)}</p>`+
+    (fid.length?`<h4 style="color:var(--alert)">Discrepancias con los datos</h4><ul>${fid.map(x=>`<li>${esc(x)}</li>`).join('')}</ul>`:`<h4>Discrepancias con los datos</h4><p>Ninguna detectada.</p>`)+
+    `<h4>Problemas</h4><ul>${(c.problemas||[]).map(p=>`<li><b>${esc(p.gravedad)}</b> · ${esc(p.descripcion)} → <i>${esc(p.arreglo)}</i></li>`).join('')||'<li>Sin problemas anotados.</li>'}</ul>`+
+    list('Aciertos',c.aciertos);
+}
+function list(t,arr){
+  if(!arr||!arr.length) return '';
+  return `<h4>${t}</h4><ul>${arr.map(x=>`<li>${esc(typeof x==='string'?x:JSON.stringify(x))}</li>`).join('')}</ul>`;
+}
+function showCode(c){
+  RUN.code=c;
+  $('code').textContent=c;
+}
+
+/* ---------- descargas ---------- */
+function download(name,content,type){
+  const blob=(content instanceof Blob)?content:new Blob([content],{type:type||'text/plain'});
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(blob); a.download=name; a.click();
+  setTimeout(()=>URL.revokeObjectURL(a.href),2000);
+}
+$('dlpy').addEventListener('click',()=>download('figura_matplotlib.py',RUN.code,'text/x-python'));
+$('dljson').addEventListener('click',()=>download('figuria_traza.json',JSON.stringify({
+  encargo:brief(), retrieval:RUN.retrieval, plan:RUN.plan, estilo:RUN.style,
+  critica:RUN.critique, iteraciones:RUN.history, codigo:RUN.code
+},null,2),'application/json'));
+$('cpcode').addEventListener('click',async()=>{
+  await navigator.clipboard.writeText(RUN.code);
+  status('Código copiado al portapapeles.');
+});
+$('dlpng').addEventListener('click',()=>{
+  const b=atob(RUN.png), u=new Uint8Array(b.length);
+  for(let i=0;i<b.length;i++) u[i]=b.charCodeAt(i);
+  download('figura.png',new Blob([u],{type:'image/png'}));
+});
+
+/* ---------- orquestador ---------- */
+async function pipeline(){
+  const b=brief();
+  if(!$('key').value.trim()){ status('Falta la clave de OpenAI.'); return; }
+  if(!b.data){ status('Pega los datos de la figura antes de lanzar.'); return; }
+
+  const model=$('model').value, cmodel=$('cmodel').value, maxIter=parseInt($('iters').value,10);
+  localStorage.setItem(KEY_STORE,$('key').value.trim());
+
+  $('go').disabled=true;
+  RUN.t0=Date.now(); RUN.history=[]; RUN.best={score:-1,code:'',png:'',critique:null};
+  $('log').innerHTML=''; resetStations();
+  log('Encargo recibido · destino '+b.venue.nombre+' · ancho '+b.width+' in.');
+
+  try{
+    // 01 Retriever
+    setStation(0,'active'); status('Retriever: leyendo los datos…');
+    RUN.retrieval=await agentRetriever(b,model);
+    setStation(0,'done');
+    log('Familia de gráfico: '+RUN.retrieval.familia,'g');
+
+    // 02 Planner
+    setStation(1,'active'); status('Planner: decidiendo la composición…');
+    RUN.plan=await agentPlanner(b,RUN.retrieval,model);
+    renderPlan(RUN.plan); setStation(1,'done');
+    log('Mensaje de la figura: '+RUN.plan.mensaje,'g');
+
+    // 03 Stylist
+    setStation(2,'active'); status('Stylist: fijando paleta y tipografía…');
+    RUN.style=await agentStylist(b,RUN.plan,model);
+    renderStyle(RUN.style); setStation(2,'done');
+    log('Paleta: '+(RUN.style.paleta||[]).join(' '),'g');
+
+    // 04 Visualizer + ejecución
+    setStation(3,'active'); status('Visualizer: escribiendo el script…');
+    let code=ensureSave(await agentVisualizer(b,RUN.plan,RUN.style,model));
+    showCode(code);
+    let res=await runPython(code);
+    let repairs=0;
+    while(!res.ok && repairs<3){
+      repairs++;
+      log('Error de ejecución ('+repairs+'/3): '+res.error.split('\n').pop(),'e');
+      status('Reparando el script…');
+      code=ensureSave(await agentRepair(code,res.error,model));
+      showCode(code);
+      res=await runPython(code);
+    }
+    if(!res.ok){ setStation(3,'fail'); throw new Error('El script no llegó a ejecutarse: '+res.error); }
+    setStation(3,'done');
+    RUN.png=res.png;
+    showFigure(b,res.png,null);
+    log('Figura renderizada con matplotlib.','g');
+
+    // 05 Critic + revisiones
+    for(let it=1; it<=maxIter; it++){
+      setStation(4,'active'); status('Critic: revisando la ronda '+it+'…');
+      const crit=await agentCritic(b,RUN.plan,RUN.png,cmodel);
+      RUN.critique=crit; renderCritique(crit);
+      const score=avg(crit.puntuaciones||{});
+      RUN.history.push({ronda:it,puntuacion:Number(score.toFixed(2)),veredicto:crit.veredicto,codigo:RUN.code});
+      log('Ronda '+it+' · media '+score.toFixed(2)+' · '+crit.veredicto,score>=4?'g':'');
+      if(score>RUN.best.score) RUN.best={score,code:RUN.code,png:RUN.png,critique:crit};
+
+      if(crit.veredicto==='aceptar' || it===maxIter) break;
+
+      status('Visualizer: aplicando la crítica…');
+      setStation(3,'active');
+      let nc=ensureSave(await agentReviser(b,RUN.code,crit,model));
+      let nres=await runPython(nc);
+      let rr=0;
+      while(!nres.ok && rr<2){
+        rr++;
+        log('La revisión falló, reparando: '+nres.error.split('\n').pop(),'e');
+        nc=ensureSave(await agentRepair(nc,nres.error,model));
+        nres=await runPython(nc);
+      }
+      if(nres.ok){
+        showCode(nc); RUN.png=nres.png; showFigure(b,nres.png,crit);
+        setStation(3,'done');
+        log('Revisión '+it+' renderizada.','g');
+      }else{
+        log('Se descarta la revisión '+it+' y se conserva la versión anterior.','e');
+        setStation(3,'done');
+        break;
+      }
+    }
+
+    // conservar la mejor versión
+    if(RUN.best.score>=0 && RUN.best.code!==RUN.code){
+      const finalCrit=await agentCritic(b,RUN.plan,RUN.png,cmodel);
+      const finalScore=avg(finalCrit.puntuaciones||{});
+      RUN.history.push({ronda:'final',puntuacion:Number(finalScore.toFixed(2)),veredicto:finalCrit.veredicto,codigo:RUN.code});
+      if(finalScore>=RUN.best.score){
+        RUN.best={score:finalScore,code:RUN.code,png:RUN.png,critique:finalCrit};
+      }
+      RUN.code=RUN.best.code; RUN.png=RUN.best.png; RUN.critique=RUN.best.critique;
+      showCode(RUN.code); renderCritique(RUN.critique); showFigure(b,RUN.png,RUN.critique);
+      log('Se conserva la versión con mejor puntuación ('+RUN.best.score.toFixed(2)+').','g');
+    }
+    setStation(4,'done');
+    status('Figura lista. Media '+ (RUN.best.score>=0?RUN.best.score.toFixed(2):'—') +' sobre 5.');
+    log('Pipeline completado.','g');
+
+  }catch(err){
+    log(String(err.message||err),'e');
+    status('Se ha detenido: '+(err.message||err));
+    STATIONS.forEach((s,i)=>{ if($('st'+i).className==='station active') setStation(i,'fail'); });
+  }finally{
+    $('go').disabled=false;
+  }
+}
+
+buildTrack();
+$('go').addEventListener('click',pipeline);
+</script>
+</body>
+</html>
